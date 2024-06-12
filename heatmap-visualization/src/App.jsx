@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import * as d3 from 'd3';
 import './App.css';
 
-// List of common stop words (you can add more as needed)
+// List of common stop words (including the new ones)
 const stopWords = [
   'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', 'aren\'t',
   'as', 'at', 'be', 'because', 'been', 'before', 'being', 'below', 'between', 'both', 'but', 'by', 'can\'t',
@@ -11,19 +11,20 @@ const stopWords = [
   'he\'d', 'he\'ll', 'he\'s', 'her', 'here', 'here\'s', 'hers', 'herself', 'him', 'himself', 'his', 'how', 'how\'s',
   'i', 'i\'d', 'i\'ll', 'i\'m', 'i\'ve', 'if', 'in', 'into', 'is', 'isn\'t', 'it', 'it\'s', 'its', 'itself', 'let\'s',
   'me', 'more', 'most', 'mustn\'t', 'my', 'myself', 'no', 'nor', 'not', 'of', 'off', 'on', 'once', 'only', 'or', 'other',
-  'ought', 'our', 'ours', 'ourselves', 'out', 'over', 'own', 'same', 'shan\'t', 'she', 'she\'d', 'she\'ll', 'she\'s',
+  'ought', 'our', 'ours', 'ourselves', 'out', 'over', 'own', 'really', 'same', 'shan\'t', 'she', 'she\'d', 'she\'ll', 'she\'s',
   'should', 'shouldn\'t', 'so', 'some', 'such', 'than', 'that', 'that\'s', 'the', 'their', 'theirs', 'them', 'themselves',
   'then', 'there', 'there\'s', 'these', 'they', 'they\'d', 'they\'ll', 'they\'re', 'they\'ve', 'this', 'those', 'through',
-  'to', 'too', 'under', 'until', 'up', 'very', 'was', 'wasn\'t', 'we', 'we\'d', 'we\'ll', 'we\'re', 'we\'ve', 'were', 'weren\'t',
+  'to', 'too', 'uh', 'under', 'until', 'up', 'um', 'uh', 'very', 'was', 'wasn\'t', 'we', 'we\'d', 'we\'ll', 'we\'re', 'we\'ve', 'were', 'weren\'t',
   'what', 'what\'s', 'when', 'when\'s', 'where', 'where\'s', 'which', 'while', 'who', 'who\'s', 'whom', 'why', 'why\'s', 'with',
-  'won\'t', 'would', 'wouldn\'t', 'you', 'you\'d', 'you\'ll', 'you\'re', 'you\'ve', 'your', 'yours', 'yourself', 'yourselves'
+  'won\'t', 'would', 'wouldn\'t', 'yeah', 'you', 'you\'d', 'you\'ll', 'you\'re', 'you\'ve', 'your', 'yours', 'yourself', 'yourselves'
 ];
-
 
 function App() {
   const [data, setData] = useState([]);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [fileGroups, setFileGroups] = useState([]);
+  const [currentFile, setCurrentFile] = useState(null); // Track current selected file
+
 
   useEffect(() => {
     // Assuming you have a list of all JSON file names
@@ -108,8 +109,11 @@ function App() {
     setFileGroups(groupedFiles);
   }, []);
 
-  useEffect(() => {
+ useEffect(() => {
     if (data.length > 0) {
+      // Clear previous heatmap
+      d3.select("#heatmap").selectAll("*").remove();
+
       // Prepare data for heatmap and render it using D3.js
       renderHeatmap(data);
     }
@@ -131,22 +135,49 @@ function App() {
 
   const renderHeatmap = (data) => {
     const words = data.flatMap(d => d.words);
-    const wordCounts = words.reduce((acc, word) => {
-      acc[word.text] = (acc[word.text] || 0) + 1;
-      return acc;
-    }, {});
+    let wordCounts = {};
+  
+    // Count word frequencies
+  data.forEach(entry => {
+    const words = entry.words.map(word => {
+      // Normalize word, remove punctuation, and convert to lowercase
+      const cleanedWord = word.text.toLowerCase()
+        .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '')
+        .trim();
 
+      // Apply stemming or lemmatization if needed
+      // Example of basic stemming (chopping off suffixes)
+      const stemmedWord = cleanedWord.replace(/ing$/, ''); // Example: feelings -> feel
+
+      // Exclude stop words and count valid words
+      if (stemmedWord && !stopWords.includes(stemmedWord)) {
+        if (wordCounts[stemmedWord]) {
+          wordCounts[stemmedWord]++;
+        } else {
+          wordCounts[stemmedWord] = 1;
+        }
+      }
+    });
+  });
+
+  // Sort wordCounts by frequency and limit to top 10 words
+  const sortedWordCounts = Object.entries(wordCounts)
+    .sort((a, b) => b[1] - a[1]) // Sort by frequency (descending)
+    .slice(0, 10); // Limit to top 10 words
+
+  wordCounts = Object.fromEntries(sortedWordCounts);
+  
     const margin = { top: 20, right: 30, bottom: 40, left: 50 };
     const width = 800 - margin.left - margin.right;
     const height = 400 - margin.top - margin.bottom;
-
+  
     const svg = d3.select("#heatmap")
       .append("svg")
       .attr("width", width + margin.left + margin.right)
       .attr("height", height + margin.top + margin.bottom)
       .append("g")
       .attr("transform", `translate(${margin.left},${margin.top})`);
-
+  
     // Setup scales
     const x = d3.scaleBand()
       .range([0, width])
@@ -155,12 +186,12 @@ function App() {
     const y = d3.scaleLinear()
       .range([height, 0])
       .domain([0, d3.max(Object.values(wordCounts))]);
-
+  
     // Setup color scale
     const color = d3.scaleSequential()
       .interpolator(d3.interpolateBlues)
       .domain([0, d3.max(Object.values(wordCounts))]);
-
+  
     // Render heatmap
     svg.selectAll()
       .data(Object.entries(wordCounts))
@@ -171,7 +202,7 @@ function App() {
       .attr("width", x.bandwidth())
       .attr("height", d => height - y(d[1]))
       .style("fill", d => color(d[1]));
-
+  
     // Add axes
     svg.append("g")
       .attr("transform", `translate(0, ${height})`)
@@ -179,6 +210,8 @@ function App() {
     svg.append("g")
       .call(d3.axisLeft(y));
   };
+  
+  
 
   return (
     <div className="App">
