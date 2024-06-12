@@ -88,6 +88,7 @@ function App() {
       'The Inner World of Counseling with Carl Rogers (1980) Part 2_pretty.json',
       'Vivian and Rogers 1984 with comments shared.json',
       'Vivian and Rogers 1984 with comments shared_pretty.json'
+      // Add more file names as needed
     ];
 
     // Group files by their base name (without "_pretty" or "_pretty_tx")
@@ -120,11 +121,14 @@ function App() {
   }, [data]);
 
   const fetchAndSetData = (fileNames) => {
-    // Fetch all JSON files
+    // Fetch all JSON files 
     Promise.all(fileNames.map(fileName => fetch(`/JSON/${fileName}`).then(response => response.json())))
-      .then(results => setData(results))
-      .catch(error => console.error('Error fetching data:', error));
-  };
+        .then(results => {
+            // Assuming results is an array of objects with 'words' property
+            setData(results);
+        })
+        .catch(error => console.error('Error fetching data:', error));
+};
 
   const handleDropdownChange = (event) => {
     const selectedLabel = event.target.value;
@@ -134,82 +138,83 @@ function App() {
   };
 
   const renderHeatmap = (data) => {
-    const words = data.flatMap(d => d.words);
     let wordCounts = {};
-  
+
     // Count word frequencies
-  data.forEach(entry => {
-    const words = entry.words.map(word => {
-      // Normalize word, remove punctuation, and convert to lowercase
-      const cleanedWord = word.text.toLowerCase()
-        .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '')
-        .trim();
+    data.forEach(entry => {
+        const words = entry.words.map(word => {
+            // Normalize word, remove punctuation, and convert to lowercase
+            const cleanedWord = word.text.toLowerCase()
+                .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '')
+                .trim();
 
-      // Apply stemming or lemmatization if needed
-      // Example of basic stemming (chopping off suffixes)
-      const stemmedWord = cleanedWord.replace(/ing$/, ''); // Example: feelings -> feel
+            // Example of basic stemming (chopping off suffixes)
+            const stemmedWord = cleanedWord.replace(/ing$/, ''); // Example: feelings -> feel
 
-      // Exclude stop words and count valid words
-      if (stemmedWord && !stopWords.includes(stemmedWord)) {
-        if (wordCounts[stemmedWord]) {
-          wordCounts[stemmedWord]++;
-        } else {
-          wordCounts[stemmedWord] = 1;
-        }
-      }
+            // Exclude stop words and count valid words
+            if (stemmedWord && !stopWords.includes(stemmedWord)) {
+                if (wordCounts[stemmedWord]) {
+                    wordCounts[stemmedWord]++;
+                } else {
+                    wordCounts[stemmedWord] = 1;
+                }
+            }
+        });
     });
-  });
 
-  // Sort wordCounts by frequency and limit to top 10 words
-  const sortedWordCounts = Object.entries(wordCounts)
-    .sort((a, b) => b[1] - a[1]) // Sort by frequency (descending)
-    .slice(0, 10); // Limit to top 10 words
+    // Sort wordCounts by frequency and limit to top 10 words
+    const sortedWordCounts = Object.entries(wordCounts)
+        .sort((a, b) => b[1] - a[1]) // Sort by frequency (descending)
+        .slice(0, 10); // Limit to top 10 words
 
-  wordCounts = Object.fromEntries(sortedWordCounts);
-  
+    wordCounts = Object.fromEntries(sortedWordCounts);
+
     const margin = { top: 20, right: 30, bottom: 40, left: 50 };
     const width = 800 - margin.left - margin.right;
     const height = 400 - margin.top - margin.bottom;
-  
+
+    // Clear previous heatmap if exists
+    d3.select("#heatmap").selectAll("*").remove();
+
     const svg = d3.select("#heatmap")
-      .append("svg")
-      .attr("width", width + margin.left + margin.right)
-      .attr("height", height + margin.top + margin.bottom)
-      .append("g")
-      .attr("transform", `translate(${margin.left},${margin.top})`);
-  
+        .append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
     // Setup scales
     const x = d3.scaleBand()
-      .range([0, width])
-      .domain(Object.keys(wordCounts))
-      .padding(0.01);
+        .range([0, width])
+        .domain(Object.keys(wordCounts))
+        .padding(0.01);
     const y = d3.scaleLinear()
-      .range([height, 0])
-      .domain([0, d3.max(Object.values(wordCounts))]);
-  
+        .range([height, 0])
+        .domain([0, d3.max(Object.values(wordCounts))]);
+
     // Setup color scale
     const color = d3.scaleSequential()
-      .interpolator(d3.interpolateBlues)
-      .domain([0, d3.max(Object.values(wordCounts))]);
-  
+        .interpolator(d3.interpolateBlues)
+        .domain([0, d3.max(Object.values(wordCounts))]);
+
     // Render heatmap
     svg.selectAll()
-      .data(Object.entries(wordCounts))
-      .enter()
-      .append("rect")
-      .attr("x", d => x(d[0]))
-      .attr("y", d => y(d[1]))
-      .attr("width", x.bandwidth())
-      .attr("height", d => height - y(d[1]))
-      .style("fill", d => color(d[1]));
-  
+        .data(Object.entries(wordCounts))
+        .enter()
+        .append("rect")
+        .attr("x", d => x(d[0]))
+        .attr("y", d => y(d[1]))
+        .attr("width", x.bandwidth())
+        .attr("height", d => height - y(d[1]))
+        .style("fill", d => color(d[1]));
+
     // Add axes
     svg.append("g")
-      .attr("transform", `translate(0, ${height})`)
-      .call(d3.axisBottom(x).tickFormat(d => d));
+        .attr("transform", `translate(0, ${height})`)
+        .call(d3.axisBottom(x).tickFormat(d => d));
     svg.append("g")
-      .call(d3.axisLeft(y));
-  };
+        .call(d3.axisLeft(y));
+};
   
   
 
