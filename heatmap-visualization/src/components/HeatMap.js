@@ -13,6 +13,7 @@ const Heatmap = ({ data }) => {
     // Clear the SVG before drawing new elements
     d3.select(svgRef.current).selectAll("*").remove();
 
+    // Process conversation data
     const processedData = processConversationData(data);
 
     const margin = { top: 80, right: 25, bottom: 100, left: 150 };
@@ -29,16 +30,26 @@ const Heatmap = ({ data }) => {
     const timestamps = Array.from(new Set(processedData.map(d => d.timestamp))).sort((a, b) => a - b);
     const speakers = Array.from(new Set(processedData.map(d => d.speaker)));
 
-    // X scale and Axis for timestamps
-    const x = d3.scaleBand()
-      .range([0, width])
-      .domain(timestamps)
-      .padding(0.05);
+    // X scale and Axis for timestamps using a time scale
+    const x = d3.scaleTime()
+      .domain(d3.extent(timestamps, d => new Date(d)))
+      .range([0, width]);
+
+    const xAxis = d3.axisBottom(x)
+      .ticks(d3.timeMinute.every(5)) // Adjust tick interval as needed
+      .tickFormat(d3.timeFormat("%H:%M"));
 
     svg.append("g")
       .attr("transform", `translate(0, ${height})`)
-      .call(d3.axisBottom(x).tickFormat(d => new Date(d).toLocaleTimeString()).tickSize(0))
+      .call(xAxis)
       .select(".domain").remove();
+
+    // Rotate x-axis labels for readability
+    svg.selectAll(".tick text")
+      .style("text-anchor", "end")
+      .attr("dx", "-0.8em")
+      .attr("dy", "0.15em")
+      .attr("transform", "rotate(-65)");
 
     // Y scale and Axis for speakers
     const y = d3.scaleBand()
@@ -51,11 +62,11 @@ const Heatmap = ({ data }) => {
       .select(".domain").remove();
 
     // Color scale
-    const colorScale = d3.scaleSequential(d3.interpolateInferno)
+    const colorScale = d3.scaleSequential(d3.interpolateRdYlBu)
       .domain([0, d3.max(processedData, d => d.frequency)]);
 
     // Tooltip
-    const tooltip = d3.select("#my_dataviz")
+    const tooltip = d3.select("body")
       .append("div")
       .style("opacity", 0)
       .attr("class", "tooltip")
@@ -83,14 +94,13 @@ const Heatmap = ({ data }) => {
     };
 
     // Add squares
+    const bandWidth = x(new Date(timestamps[1])) - x(new Date(timestamps[0]));
     svg.selectAll()
       .data(processedData, d => `${d.speaker}:${d.timestamp}:${d.word}`)
       .join("rect")
-      .attr("x", d => x(d.timestamp))
+      .attr("x", d => x(new Date(d.timestamp)))
       .attr("y", d => y(d.speaker))
-      .attr("rx", 4)
-      .attr("ry", 4)
-      .attr("width", x.bandwidth())
+      .attr("width", bandWidth)
       .attr("height", y.bandwidth())
       .style("fill", d => colorScale(d.frequency))
       .style("stroke-width", 4)
@@ -117,7 +127,6 @@ const Heatmap = ({ data }) => {
       .style("fill", "grey")
       .style("max-width", 400)
       .text("A visual representation of word frequency over time.");
-
   }, [data]);
 
   return <div id="my_dataviz"><svg ref={svgRef}></svg></div>;
