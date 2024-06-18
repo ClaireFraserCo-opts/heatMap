@@ -1,58 +1,130 @@
-// src/components/HeatMap.js
+// src/components/Heatmap.js
+
 import React, { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
+import { processConversationData } from '../utils/dataProcessing';
 
-const HeatMap = ({ data }) => {
-    const ref = useRef();
+const Heatmap = ({ data }) => {
+  const svgRef = useRef(null);
 
-    useEffect(() => {
-        if (data.length === 0) return;
+  useEffect(() => {
+    if (!data) return;
 
-        // Extract words and calculate frequencies
-        const wordCounts = data.reduce((acc, item) => {
-            acc[item.text] = (acc[item.text] || 0) + 1;
-            return acc;
-        }, {});
+    // Clear the SVG before drawing new elements
+    d3.select(svgRef.current).selectAll("*").remove();
 
-        const words = Object.keys(wordCounts);
-        const counts = Object.values(wordCounts);
+    const processedData = processConversationData(data);
 
-        // Set up dimensions and scales
-        const width = 800;
-        const height = 600;
-        const colorScale = d3.scaleSequential(d3.interpolateBlues)
-                             .domain([0, d3.max(counts)]);
+    const margin = { top: 80, right: 25, bottom: 30, left: 40 };
+    const width = 450 - margin.left - margin.right;
+    const height = 450 - margin.top - margin.bottom;
 
-        // Create SVG
-        const svg = d3.select(ref.current)
-                      .attr('width', width)
-                      .attr('height', height);
+    const svg = d3.select(svgRef.current)
+      .attr('width', width + margin.left + margin.right)
+      .attr('height', height + margin.top + margin.bottom)
+      .append('g')
+      .attr('transform', `translate(${margin.left}, ${margin.top})`);
 
-        // Clear previous content
-        svg.selectAll('*').remove();
+    // Extract unique speakers and timestamps
+    const speakers = Array.from(new Set(processedData.map(d => d.speaker)));
+    const timestamps = Array.from(new Set(processedData.map(d => d.timestamp))).sort((a, b) => a - b);
 
-        // Set up grid size and margins
-        const gridSize = Math.floor(width / words.length);
-        const margin = { top: 20, right: 20, bottom: 20, left: 20 };
+    // Check the extracted speakers and timestamps
+    console.log("Speakers:", speakers);
+    console.log("Timestamps:", timestamps);
 
-        // Create heat map squares
-        svg.selectAll('.word')
-           .data(words)
-           .enter()
-           .append('rect')
-           .attr('x', (d, i) => (i % Math.floor(width / gridSize)) * gridSize + margin.left)
-           .attr('y', (d, i) => Math.floor(i / Math.floor(width / gridSize)) * gridSize + margin.top)
-           .attr('width', gridSize)
-           .attr('height', gridSize)
-           .style('fill', d => colorScale(wordCounts[d]))
-           .append('title')
-           .text(d => `${d}: ${wordCounts[d]}`);
+    // X scale and Axis
+    const x = d3.scaleBand()
+      .range([0, width])
+      .domain(timestamps)
+      .padding(0.05);
 
-    }, [data]);
+    svg.append("g")
+      .attr("transform", `translate(0, ${height})`)
+      .call(d3.axisBottom(x).tickFormat(d => new Date(d).toLocaleTimeString()).tickSize(0))
+      .select(".domain").remove();
 
-    return (
-        <svg ref={ref}></svg>
-    );
+    // Y scale and Axis
+    const y = d3.scaleBand()
+      .range([height, 0])
+      .domain(speakers)
+      .padding(0.05);
+
+    svg.append("g")
+      .call(d3.axisLeft(y).tickSize(0))
+      .select(".domain").remove();
+
+    // Color scale
+    const colorScale = d3.scaleSequential(d3.interpolateInferno)
+      .domain([0, 100]);
+
+    // Tooltip
+    const tooltip = d3.select("#my_dataviz")
+      .append("div")
+      .style("opacity", 0)
+      .attr("class", "tooltip")
+      .style("background-color", "white")
+      .style("border", "solid")
+      .style("border-width", "2px")
+      .style("border-radius", "5px")
+      .style("padding", "5px");
+
+    const mouseover = function (event, d) {
+      tooltip.style("opacity", 1);
+      d3.select(this).style("stroke", "black").style("opacity", 1);
+    };
+
+    const mousemove = function (event, d) {
+      tooltip
+        .html(`Speaker: ${d.speaker}<br>Timestamp: ${new Date(d.timestamp).toLocaleTimeString()}<br>Percentile: ${d.percentile}`)
+        .style("left", (event.pageX + 15) + "px")
+        .style("top", (event.pageY - 28) + "px");
+    };
+
+    const mouseleave = function (event, d) {
+      tooltip.style("opacity", 0);
+      d3.select(this).style("stroke", "none").style("opacity", 0.8);
+    };
+
+    // Add squares
+    svg.selectAll()
+      .data(processedData, d => `${d.speaker}:${d.timestamp}`)
+      .join("rect")
+      .attr("x", d => x(d.timestamp))
+      .attr("y", d => y(d.speaker))
+      .attr("rx", 4)
+      .attr("ry", 4)
+      .attr("width", x.bandwidth())
+      .attr("height", y.bandwidth())
+      .style("fill", d => colorScale(d.percentile))
+      .style("stroke-width", 4)
+      .style("stroke", "none")
+      .style("opacity", 0.8)
+      .on("mouseover", mouseover)
+      .on("mousemove", mousemove)
+      .on("mouseleave", mouseleave);
+
+    // Add title to graph
+    svg.append("text")
+      .attr("x", 0)
+      .attr("y", -50)
+      .attr("text-anchor", "left")
+      .style("font-size", "22px")
+      .text("Conversation Heatmap");
+
+    // Add subtitle to graph
+    svg.append("text")
+      .attr("x", 0)
+      .attr("y", -20)
+      .attr("text-anchor", "left")
+      .style("font-size", "14px")
+      .style("fill", "grey")
+      .style("max-width", 400)
+      .text("A visual representation of conversation intensity over time.");
+
+  }, [data]);
+
+  return <div id="my_dataviz"><svg ref={svgRef}></svg></div>;
 };
 
-export default HeatMap;
+export default Heatmap;

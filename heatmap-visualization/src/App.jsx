@@ -1,34 +1,20 @@
+// src/App.jsx
+
 import React, { useState, useEffect } from 'react';
-import * as d3 from 'd3';
+import Dropdown from './components/Dropdown';
+import Heatmap from './components/HeatMap'; // Ensure correct import
+import { fetchAndProcessData, groupFileNames } from './utils/dataUtils'; // Assuming these utilities are implemented
+import { stopWords } from './utils/stopWords'; // Assuming this is defined
+
 import './App.css';
 
-// List of common stop words (including the new ones)
-const stopWords = [
-  'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', 'aren\'t',
-  'as', 'at', 'be', 'because', 'been', 'before', 'being', 'below', 'between', 'both', 'but', 'by', 'can\'t',
-  'cannot', 'could', 'couldn\'t', 'did', 'didn\'t', 'do', 'does', 'doesn\'t', 'doing', 'don\'t', 'down', 'during',
-  'each', 'few', 'for', 'from', 'further', 'had', 'hadn\'t', 'has', 'hasn\'t', 'have', 'haven\'t', 'having', 'he',
-  'he\'d', 'he\'ll', 'he\'s', 'her', 'here', 'here\'s', 'hers', 'herself', 'him', 'himself', 'his', 'how', 'how\'s',
-  'i', 'i\'d', 'i\'ll', 'i\'m', 'i\'ve', 'if', 'in', 'into', 'is', 'isn\'t', 'it', 'it\'s', 'its', 'itself', 'let\'s',
-  'me', 'more', 'most', 'mustn\'t', 'my', 'myself', 'no', 'nor', 'not', 'of', 'off', 'on', 'once', 'only', 'or', 'other',
-  'ought', 'our', 'ours', 'ourselves', 'out', 'over', 'own', 'really', 'same', 'shan\'t', 'she', 'she\'d', 'she\'ll', 'she\'s',
-  'should', 'shouldn\'t', 'so', 'some', 'such', 'than', 'that', 'that\'s', 'the', 'their', 'theirs', 'them', 'themselves',
-  'then', 'there', 'there\'s', 'these', 'they', 'they\'d', 'they\'ll', 'they\'re', 'they\'ve', 'this', 'those', 'through',
-  'to', 'too', 'uh', 'under', 'until', 'up', 'um', 'uh', 'very', 'was', 'wasn\'t', 'we', 'we\'d', 'we\'ll', 'we\'re', 'we\'ve', 'were', 'weren\'t',
-  'what', 'what\'s', 'when', 'when\'s', 'where', 'where\'s', 'which', 'while', 'who', 'who\'s', 'whom', 'why', 'why\'s', 'with',
-  'won\'t', 'would', 'wouldn\'t', 'yeah', 'you', 'you\'d', 'you\'ll', 'you\'re', 'you\'ve', 'your', 'yours', 'yourself', 'yourselves'
-];
-
-function App() {
-  const [data, setData] = useState([]);
-  const [selectedFiles, setSelectedFiles] = useState([]);
+const App = () => {
   const [fileGroups, setFileGroups] = useState([]);
-  const [currentFile, setCurrentFile] = useState(null); // Track current selected file
-
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [conversationData, setConversationData] = useState(null);
 
   useEffect(() => {
-    // Assuming you have a list of all JSON file names
-    const allFileNames = [
+    const fileNames = [
       '01 Shlien Mr. Rob.json',
       '01 Shlien Mr. Rob_pretty.json',
       '01 Shlien Mr. Rob_pretty_tx.json',
@@ -79,7 +65,7 @@ function App() {
       'Rogers, Carl R. (1960) - The Client.json',
       'Rogers, Carl R. (1960) - The Client_pretty.json',
       'Session 2 with Abe from Cognitive Behavioral Therapy ： Basics and Beyond, 3rd Ed.json',
-      'Session 2 with Abe from Cognitive Behavioral Therapy ： Basics and Beyond, 3rd Ed_pretty.json',
+      'Session 2 with Abe from Cognitive Behavioral Therapy： Basics and Beyond, 3rd Ed_pretty.json',
       'STEVE WITH ROGERS.json',
       'STEVE WITH ROGERS_pretty.json',
       'The Inner World of Counseling with Carl Rogers (1980) Part 1.json',
@@ -87,149 +73,37 @@ function App() {
       'The Inner World of Counseling with Carl Rogers (1980) Part 2.json',
       'The Inner World of Counseling with Carl Rogers (1980) Part 2_pretty.json',
       'Vivian and Rogers 1984 with comments shared.json',
-      'Vivian and Rogers 1984 with comments shared_pretty.json'
-      // Add more file names as needed
-    ];
-
-    // Group files by their base name (without "_pretty" or "_pretty_tx")
-    const groups = {};
-    allFileNames.forEach(fileName => {
-      const baseName = fileName.replace(/(_pretty|_pretty_tx)?\.json$/, '');
-      if (!groups[baseName]) {
-        groups[baseName] = [];
-      }
-      groups[baseName].push(fileName);
-    });
-
-    // Convert groups object to array format for easier rendering
-    const groupedFiles = Object.keys(groups).map(label => ({
-      label,
-      files: groups[label]
-    }));
-
-    setFileGroups(groupedFiles);
+      'Vivian and Rogers 1984 with comments shared_pretty.json',
+            // Add more file names as needed
+          ];
+const groups = groupFileNames(fileNames); // Implement groupFileNames utility function
+setFileGroups(groups);
   }, []);
 
- useEffect(() => {
-    if (data.length > 0) {
-      // Clear previous heatmap
-      d3.select("#heatmap").selectAll("*").remove();
-
-      // Prepare data for heatmap and render it using D3.js
-      renderHeatmap(data);
+const handleGroupChange = async (label) => {
+  const selectedGroup = fileGroups.find(group => group.label === label);
+  if (selectedGroup) {
+    try {
+      const data = await fetchAndProcessData(selectedGroup.files); // Implement fetchAndProcessData utility function
+      if (data && Array.isArray(data) && data.length > 0) {
+        setConversationData(data);
+      } else {
+        console.error('No data or invalid data format:', data);
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
     }
-  }, [data]);
-
-  const fetchAndSetData = (fileNames) => {
-    // Fetch all JSON files 
-    Promise.all(fileNames.map(fileName => fetch(`/JSON/${fileName}`).then(response => response.json())))
-        .then(results => {
-            // Assuming results is an array of objects with 'words' property
-            setData(results);
-        })
-        .catch(error => console.error('Error fetching data:', error));
+    setSelectedGroup(label);
+  }
 };
 
-  const handleDropdownChange = (event) => {
-    const selectedLabel = event.target.value;
-    const selectedFiles = fileGroups.find(group => group.label === selectedLabel)?.files || [];
-    setSelectedFiles(selectedFiles);
-    fetchAndSetData(selectedFiles);
-  };
-
-  const renderHeatmap = (data) => {
-    let wordCounts = {};
-
-    // Count word frequencies
-    data.forEach(entry => {
-        const words = entry.words.map(word => {
-            // Normalize word, remove punctuation, and convert to lowercase
-            const cleanedWord = word.text.toLowerCase()
-                .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '')
-                .trim();
-
-            // Example of basic stemming (chopping off suffixes)
-            const stemmedWord = cleanedWord.replace(/ing$/, ''); // Example: feelings -> feel
-
-            // Exclude stop words and count valid words
-            if (stemmedWord && !stopWords.includes(stemmedWord)) {
-                if (wordCounts[stemmedWord]) {
-                    wordCounts[stemmedWord]++;
-                } else {
-                    wordCounts[stemmedWord] = 1;
-                }
-            }
-        });
-    });
-
-    // Sort wordCounts by frequency and limit to top 10 words
-    const sortedWordCounts = Object.entries(wordCounts)
-        .sort((a, b) => b[1] - a[1]) // Sort by frequency (descending)
-        .slice(0, 10); // Limit to top 10 words
-
-    wordCounts = Object.fromEntries(sortedWordCounts);
-
-    const margin = { top: 20, right: 30, bottom: 40, left: 50 };
-    const width = 800 - margin.left - margin.right;
-    const height = 400 - margin.top - margin.bottom;
-
-    // Clear previous heatmap if exists
-    d3.select("#heatmap").selectAll("*").remove();
-
-    const svg = d3.select("#heatmap")
-        .append("svg")
-        .attr("width", width + margin.left + margin.right)
-        .attr("height", height + margin.top + margin.bottom)
-        .append("g")
-        .attr("transform", `translate(${margin.left},${margin.top})`);
-
-    // Setup scales
-    const x = d3.scaleBand()
-        .range([0, width])
-        .domain(Object.keys(wordCounts))
-        .padding(0.01);
-    const y = d3.scaleLinear()
-        .range([height, 0])
-        .domain([0, d3.max(Object.values(wordCounts))]);
-
-    // Setup color scale
-    const color = d3.scaleSequential()
-        .interpolator(d3.interpolateBlues)
-        .domain([0, d3.max(Object.values(wordCounts))]);
-
-    // Render heatmap
-    svg.selectAll()
-        .data(Object.entries(wordCounts))
-        .enter()
-        .append("rect")
-        .attr("x", d => x(d[0]))
-        .attr("y", d => y(d[1]))
-        .attr("width", x.bandwidth())
-        .attr("height", d => height - y(d[1]))
-        .style("fill", d => color(d[1]));
-
-    // Add axes
-    svg.append("g")
-        .attr("transform", `translate(0, ${height})`)
-        .call(d3.axisBottom(x).tickFormat(d => d));
-    svg.append("g")
-        .call(d3.axisLeft(y));
+return (
+  <div className="App">
+    <h1>Conversation Heatmap</h1>
+    <Dropdown fileGroups={fileGroups} onChange={handleGroupChange} />
+    {conversationData && <Heatmap data={conversationData} />}
+  </div>
+);
 };
-  
-  
-
-  return (
-    <div className="App">
-      <h1>Heatmap Visualization</h1>
-      <select onChange={handleDropdownChange}>
-        <option value="">Select a file group</option>
-        {fileGroups.map(group => (
-          <option key={group.label} value={group.label}>{group.label}</option>
-        ))}
-      </select>
-      <div id="heatmap"></div>
-    </div>
-  );
-}
 
 export default App;
