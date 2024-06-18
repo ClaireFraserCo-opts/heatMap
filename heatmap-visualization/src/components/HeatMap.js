@@ -15,8 +15,8 @@ const Heatmap = ({ data }) => {
 
     const processedData = processConversationData(data);
 
-    const margin = { top: 80, right: 25, bottom: 30, left: 40 };
-    const width = 450 - margin.left - margin.right;
+    const margin = { top: 80, right: 25, bottom: 100, left: 150 };
+    const width = 950 - margin.left - margin.right;
     const height = 450 - margin.top - margin.bottom;
 
     const svg = d3.select(svgRef.current)
@@ -25,15 +25,11 @@ const Heatmap = ({ data }) => {
       .append('g')
       .attr('transform', `translate(${margin.left}, ${margin.top})`);
 
-    // Extract unique speakers and timestamps
-    const speakers = Array.from(new Set(processedData.map(d => d.speaker)));
+    // Extract unique timestamps and speakers
     const timestamps = Array.from(new Set(processedData.map(d => d.timestamp))).sort((a, b) => a - b);
+    const speakers = Array.from(new Set(processedData.map(d => d.speaker)));
 
-    // Check the extracted speakers and timestamps
-    console.log("Speakers:", speakers);
-    console.log("Timestamps:", timestamps);
-
-    // X scale and Axis
+    // X scale and Axis for timestamps
     const x = d3.scaleBand()
       .range([0, width])
       .domain(timestamps)
@@ -44,7 +40,7 @@ const Heatmap = ({ data }) => {
       .call(d3.axisBottom(x).tickFormat(d => new Date(d).toLocaleTimeString()).tickSize(0))
       .select(".domain").remove();
 
-    // Y scale and Axis
+    // Y scale and Axis for speakers
     const y = d3.scaleBand()
       .range([height, 0])
       .domain(speakers)
@@ -56,7 +52,7 @@ const Heatmap = ({ data }) => {
 
     // Color scale
     const colorScale = d3.scaleSequential(d3.interpolateInferno)
-      .domain([0, 100]);
+      .domain([0, d3.max(processedData, d => d.frequency)]);
 
     // Tooltip
     const tooltip = d3.select("#my_dataviz")
@@ -76,7 +72,7 @@ const Heatmap = ({ data }) => {
 
     const mousemove = function (event, d) {
       tooltip
-        .html(`Speaker: ${d.speaker}<br>Timestamp: ${new Date(d.timestamp).toLocaleTimeString()}<br>Percentile: ${d.percentile}`)
+        .html(`Speaker: ${d.speaker}<br>Timestamp: ${new Date(d.timestamp).toLocaleTimeString()}<br>Word: ${d.word}<br>Frequency: ${d.frequency}`)
         .style("left", (event.pageX + 15) + "px")
         .style("top", (event.pageY - 28) + "px");
     };
@@ -88,7 +84,7 @@ const Heatmap = ({ data }) => {
 
     // Add squares
     svg.selectAll()
-      .data(processedData, d => `${d.speaker}:${d.timestamp}`)
+      .data(processedData, d => `${d.speaker}:${d.timestamp}:${d.word}`)
       .join("rect")
       .attr("x", d => x(d.timestamp))
       .attr("y", d => y(d.speaker))
@@ -96,7 +92,7 @@ const Heatmap = ({ data }) => {
       .attr("ry", 4)
       .attr("width", x.bandwidth())
       .attr("height", y.bandwidth())
-      .style("fill", d => colorScale(d.percentile))
+      .style("fill", d => colorScale(d.frequency))
       .style("stroke-width", 4)
       .style("stroke", "none")
       .style("opacity", 0.8)
@@ -120,7 +116,7 @@ const Heatmap = ({ data }) => {
       .style("font-size", "14px")
       .style("fill", "grey")
       .style("max-width", 400)
-      .text("A visual representation of conversation intensity over time.");
+      .text("A visual representation of word frequency over time.");
 
   }, [data]);
 
