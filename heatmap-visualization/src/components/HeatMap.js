@@ -1,5 +1,3 @@
-// src/components/Heatmap.js
-
 import React, { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { processConversationData } from '../utils/dataProcessing';
@@ -10,10 +8,8 @@ const Heatmap = ({ data }) => {
   useEffect(() => {
     if (!data) return;
 
-    // Clear the SVG before drawing new elements
     d3.select(svgRef.current).selectAll("*").remove();
 
-    // Process conversation data
     const processedData = processConversationData(data);
 
     const margin = { top: 80, right: 25, bottom: 100, left: 150 };
@@ -26,32 +22,28 @@ const Heatmap = ({ data }) => {
       .append('g')
       .attr('transform', `translate(${margin.left}, ${margin.top})`);
 
-    // Extract unique timestamps and speakers
     const timestamps = Array.from(new Set(processedData.map(d => d.timestamp))).sort((a, b) => a - b);
     const speakers = Array.from(new Set(processedData.map(d => d.speaker)));
 
-    // X scale and Axis for timestamps using a time scale
     const x = d3.scaleTime()
-      .domain(d3.extent(timestamps, d => new Date(d)))
+      .domain([new Date(d3.min(timestamps)), new Date(d3.max(timestamps))])
       .range([0, width]);
 
     const xAxis = d3.axisBottom(x)
-      .ticks(d3.timeMinute.every(5)) // Adjust tick interval as needed
-      .tickFormat(d3.timeFormat("%H:%M"));
+      .ticks(d3.timeMinute.every(1))
+      .tickFormat(d3.timeFormat("%H:%M:%S"));
 
     svg.append("g")
       .attr("transform", `translate(0, ${height})`)
       .call(xAxis)
       .select(".domain").remove();
 
-    // Rotate x-axis labels for readability
     svg.selectAll(".tick text")
       .style("text-anchor", "end")
       .attr("dx", "-0.8em")
       .attr("dy", "0.15em")
       .attr("transform", "rotate(-65)");
 
-    // Y scale and Axis for speakers
     const y = d3.scaleBand()
       .range([height, 0])
       .domain(speakers)
@@ -61,11 +53,13 @@ const Heatmap = ({ data }) => {
       .call(d3.axisLeft(y).tickSize(0))
       .select(".domain").remove();
 
-    // Color scale
-    const colorScale = d3.scaleSequential(d3.interpolateRdYlBu)
-      .domain([0, d3.max(processedData, d => d.frequency)]);
+    // Define color scale for word frequency
+    const colorScale = d3.scaleThreshold()
+      .domain([1, 5, 10, 15, 20, 25]) // Example threshold values
+      .range(["darkblue", "lightblue", "cyan", "orange", "red", "darkred"]);
 
-    // Tooltip
+    const silenceColor = "lightgray"; // Define silence color
+
     const tooltip = d3.select("body")
       .append("div")
       .style("opacity", 0)
@@ -93,16 +87,22 @@ const Heatmap = ({ data }) => {
       d3.select(this).style("stroke", "none").style("opacity", 0.8);
     };
 
-    // Add squares
-    const bandWidth = x(new Date(timestamps[1])) - x(new Date(timestamps[0]));
+    const rectWidth = width / timestamps.length;
+
     svg.selectAll()
       .data(processedData, d => `${d.speaker}:${d.timestamp}:${d.word}`)
       .join("rect")
       .attr("x", d => x(new Date(d.timestamp)))
       .attr("y", d => y(d.speaker))
-      .attr("width", bandWidth)
+      .attr("width", rectWidth)
       .attr("height", y.bandwidth())
-      .style("fill", d => colorScale(d.frequency))
+      .style("fill", d => {
+        if (d.frequency === 0) {
+          return silenceColor; // Apply silence color if frequency is 0
+        } else {
+          return colorScale(d.frequency); // Apply color based on frequency
+        }
+      })
       .style("stroke-width", 4)
       .style("stroke", "none")
       .style("opacity", 0.8)
@@ -110,7 +110,6 @@ const Heatmap = ({ data }) => {
       .on("mousemove", mousemove)
       .on("mouseleave", mouseleave);
 
-    // Add title to graph
     svg.append("text")
       .attr("x", 0)
       .attr("y", -50)
@@ -118,7 +117,6 @@ const Heatmap = ({ data }) => {
       .style("font-size", "22px")
       .text("Conversation Heatmap");
 
-    // Add subtitle to graph
     svg.append("text")
       .attr("x", 0)
       .attr("y", -20)
@@ -127,6 +125,7 @@ const Heatmap = ({ data }) => {
       .style("fill", "grey")
       .style("max-width", 400)
       .text("A visual representation of word frequency over time.");
+
   }, [data]);
 
   return <div id="my_dataviz"><svg ref={svgRef}></svg></div>;
